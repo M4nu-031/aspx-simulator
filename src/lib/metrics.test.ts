@@ -11,6 +11,7 @@ import {
   freeToPaidWhitespace,
   isEligibleForCopilotTab,
   monthsUntil,
+  projectedMonthEnd,
   seatsWhitespace,
   tenantPenetration,
   usageHistory,
@@ -134,7 +135,9 @@ describe('dataset integrity', () => {
     expect(Math.round(byCase(1).freeChatPenetration * 100)).toBe(2);
     expect(Math.round(byCase(3).freeChatPenetration * 100)).toBe(18);
     expect(byCase(2).mciEligible).toBe(true);
-    expect(byCase(4).mtdCredits! / byCase(4).monthlyCreditLimit!).toBeGreaterThan(0.9);
+    const m4 = byCase(4).credits!.months;
+    expect((m4[1].paygo + m4[1].prepaid) / m4[1].limit).toBeCloseTo(0.94);
+    expect(projectedMonthEnd(byCase(4).mtdCredits!)).toBeGreaterThan(m4[2].limit);
     expect(byCase(5).trialDaysRemaining).toBe(9);
     expect(monthsUntil(byCase(6).largestCspRenewal)).toBe(4);
     expect(byCase(7).adminNeedsAttention).toBe(3);
@@ -174,7 +177,81 @@ describe('filters, playbooks and advice', () => {
   });
 });
 
+describe('licenses, data security and Cowork stay consistent with the table', () => {
+  it('Data Security Maturity in the table equals the value derived from licenses + workload usage', () => {
+    rows.forEach((r) => expect(r.dataSecurity.maturity, `case ${r.caseNo}`).toBe(r.dataSecurityMaturity));
+  });
+  it('licenses add up to Total M365 licenses and Copilot PAU', () => {
+    rows.forEach((r) => {
+      const base = r.licenses.filter((l) => l.kind === 'Base');
+      const devices = r.licenses.filter((l) => l.kind === 'Device').reduce((s, l) => s + (l.seats ?? 0), 0);
+      base.forEach((l) => expect(l.seats).toBe(r.eligibleSeats));
+      expect(r.eligibleSeats + devices, `case ${r.caseNo}`).toBe(r.totalM365Licenses);
+      const copilotSeats = r.licenses.filter((l) => l.kind === 'Copilot').reduce((s, l) => s + (l.seats ?? 0), 0);
+      expect(copilotSeats).toBe(r.pau);
+    });
+  });
+  it('security workload MPU and DPU never exceed what is plausible', () => {
+    rows.forEach((r) =>
+      r.dataSecurity.workloads.forEach((w) => {
+        expect(w.mpu).toBeLessThanOrEqual(r.eligibleSeats);
+        if (w.dpu != null) expect(w.dpu).toBeLessThanOrEqual(w.mpu);
+      }),
+    );
+  });
+  it('Cowork stats exist only when Cowork MAU > 0 and retention never exceeds 100%', () => {
+    rows.forEach((r) => {
+      expect(r.coworkStats != null).toBe(r.coworkMau > 0);
+      if (r.cowork) {
+        expect(r.cowork.returningUsers).toBeLessThanOrEqual(Math.min(r.cowork.priorPeriodUsers, r.coworkMau));
+        expect(r.coworkStats!.turnsSuccessRate!).toBeLessThanOrEqual(1);
+      }
+    });
+  });
+  it('credits: MTD (6 days), Weekly Consumption (7 days) and full months tell the same story', () => {
+    rows
+      .filter((r) => r.credits)
+      .forEach((r) => {
+        const [m2, m1] = r.credits!.months;
+        // last 7 days ≈ MTD daily pace × 7 (±10%)
+        const weeklyFromMtd = (r.mtdCredits! / 6) * 7;
+        expect(Math.abs(r.weeklyConsumption! - weeklyFromMtd) / weeklyFromMtd, `case ${r.caseNo}`).toBeLessThan(0.1);
+        // MTD daily pace within ±40% of October's daily pace
+        const ratio = r.mtdCredits! / 6 / ((m1.paygo + m1.prepaid) / 31);
+        expect(ratio, `case ${r.caseNo}`).toBeGreaterThan(0.6);
+        expect(ratio, `case ${r.caseNo}`).toBeLessThan(1.4);
+        // Peak Monthly Consumption = highest full month
+        expect(r.credits!.peakMonthly).toBe(Math.max(m2.paygo + m2.prepaid, m1.paygo + m1.prepaid));
+      });
+  });
+  it('All Copilot MAU flyout: every tenant with MAU has filled app bars, and no app exceeds All Copilot MAU', () => {
+    rows.forEach((r) => {
+      const apps = Object.values(r.apps);
+      const top = Math.max(...apps);
+      apps.forEach((v) => expect(v, `case ${r.caseNo}`).toBeLessThanOrEqual(r.allCopilotMau));
+      if (r.allCopilotMau > 0) expect(top / r.allCopilotMau, `case ${r.caseNo}`).toBeGreaterThanOrEqual(0.5);
+      if (r.licensedMau === 0) expect(r.apps.salesCrm).toBe(0);
+    });
+  });
+  it('All Agents MAU never exceeds the users who use Copilot plus a reasonable agent share', () => {
+    rows.forEach((r) => {
+      Object.values(r.agents).forEach((v) => expect(v, `case ${r.caseNo}`).toBeLessThanOrEqual(r.allCopilotMau));
+    });
+  });
+  it('Monthly Cowork Credits per User = 4 × weekly Cowork credits / Cowork MAU', () => {
+    const c8 = rows.find((r) => r.caseNo === 8)!;
+    expect(c8.coworkCreditsPerUser).toBe(Math.round((c8.weekly!.cowork * 4) / c8.coworkMau));
+  });
+});
+
 describe('columns', () => {
+  it('missing export columns are added as hidden columns, not shown by default', () => {
+    ['Utilization MIP P2', 'Cowork MoM Retention', 'M-2 Overage', 'Deepwork Credits Consumed', 'Copilot Connectors - Healthy'].forEach((h) => {
+      const c = COLUMNS.find((x) => x.header === h);
+      expect(c, h).toBeTruthy();
+      expect(c!.hidden).toBe(true);
+    });
+  });
   it('every column has an English definition in the Data Dictionary', () => {
     COLUMNS.forEach((c) => expect(DEFS[c.header], c.header).toBeTruthy());
   });

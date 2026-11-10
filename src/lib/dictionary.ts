@@ -94,7 +94,8 @@ export const DEFS: Record<string, string> = {
     'Total Copilot Credits consumed by the tenant over the last rolling seven days, across all Copilot experiences. Credits are additive across experiences. Select the value to see consumption by experience.',
   'Cowork MAU':
     'Monthly active users of Cowork, measured over the last rolling 28 days. Use this signal to identify customers already engaging with Cowork and to prioritize value-realization, adoption, and upsell conversations.',
-  'Monthly Cowork Credits per User': 'Average Copilot Credits consumed by Cowork per Cowork monthly active user. (simulator)',
+  'Monthly Cowork Credits per User':
+    'Average Copilot Credits consumed by Cowork per Cowork monthly active user: Cowork credits over the last rolling 28 days (4 × the weekly Cowork value) divided by Cowork MAU. (simulator)',
   'Copilot Opportunity':
     'This field is a Microsoft recommendation of whether the next step should be to focus on acquiring, monetizing, or growing the customer along the Copilot journey. See Copilot Opportunity Details flyout for more details.',
   'E7 Opportunity':
@@ -169,19 +170,63 @@ export const DEFS: Record<string, string> = {
   'CSP Promotions':
     'List of all active new Commerce Cloud Solution Provider (CSP) promotions related to this solution area. Active promotions do not necessarily meet the eligibility criteria for this tenant.',
 
-  // Download-only (flyout fields)
-  'PAYGO Credits Consumed': 'Copilot Credits consumed and billed on a pay-as-you-go basis.',
-  'Prepaid Credits Consumed': 'Copilot Credits consumed from prepaid credit capacity.',
-  'Non Billable Credits Consumed': 'Copilot Credits consumed that are non-billable.',
-  'Available Billable Credits':
-    'Remaining billable Copilot Credits available under the configured limit (the configured limit minus credits consumed) for billable plans.',
   'Copilot Purchase Propensity':
     'High, medium, or low propensity for a tenant to purchase more Copilot licenses. This propensity includes licensing across AI SKUs, including Microsoft 365 Copilot or Microsoft Copilot for Business.',
-  'Cowork (Weekly)': 'Copilot Credits consumed by Cowork in the last rolling seven days.',
-  'Work IQ (Weekly)': 'Copilot Credits consumed by Work IQ in the last rolling seven days.',
-  'GitHub Copilot (Weekly)': 'Copilot Credits consumed by GitHub Copilot in the last rolling seven days.',
-  'Agents (Weekly)': 'Copilot Credits consumed by agents in the last rolling seven days. (simulator)',
+  ...creditDefs(),
+  // Weekly Consumption flyout values
+  'Cowork Credits Consumed': 'Copilot Credits consumed by Cowork in the last rolling seven days.',
+  'WorkIQ Credits Consumed': 'Copilot Credits consumed by Work IQ in the last rolling seven days.',
+  'GitHub Copilot Credits Consumed': 'Copilot Credits consumed by GitHub Copilot in the last rolling seven days.',
+  'Deepwork Credits Consumed': 'Copilot Credits consumed by Deep Work experiences in the last rolling seven days.',
+  // Cowork MAU flyout values
+  'Cowork MoM Retention':
+    "Percentage of the prior period's Cowork users who returned in the current rolling 28-day period (returning users divided by prior-period users).",
+  'Total Cowork Tasks': 'Total number of Cowork tasks run in the last rolling 28 days.',
+  'Scheduled Cowork Tasks': 'Number of Cowork tasks that ran on a schedule in the last rolling 28 days.',
+  'Interactive Tasks': 'Number of Cowork tasks run interactively by users in the last rolling 28 days.',
+  'Turns Succeed': 'Number of Cowork turns that completed successfully in the last rolling 28 days.',
+  'Turns Failed': 'Number of Cowork turns that failed in the last rolling 28 days.',
+  'Turns Abandoned': 'Number of Cowork turns that users abandoned before completion in the last rolling 28 days.',
+  'Turns Success Rate':
+    'Percentage of Cowork turns that completed successfully (turns succeeded divided by total turns) in the last rolling 28 days.',
+  // Data security workloads
+  'Utilization MIP P2':
+    'Microsoft Purview Information Protection P2 monthly active users divided by paid available units (MPU / PAU). See the Data Security Maturity flyout. (simulator)',
+  'Utilization IRM':
+    'Microsoft Purview Insider Risk Management monthly active users divided by paid available units (MPU / PAU). See the Data Security Maturity flyout. (simulator)',
+  // Admin settings (Admin Settings Recommendations flyout)
+  'Copilot Frontier':
+    'Frontier Enablement status. Enable Microsoft Frontier to give customers early access to new Copilot capabilities and AI innovations before they reach general availability.',
+  'Copilot Frontier - Healthy': 'A flag that describes whether the Frontier Enablement admin setting is healthy.',
+  'Teams Transcription':
+    'Teams meeting transcription status. Enable it so Copilot can use meeting conversations to provide summaries, action items, Q&A, and other meeting insights.',
+  'Teams Transcription - Healthy': 'A flag that describes whether the Teams Transcription admin setting is healthy.',
+  'Usage-Based Billing':
+    'Usage-based billing status. Enable it to give users access to supported Copilot experiences that consume Copilot Credits while allowing admins to manage AI spending and usage.',
+  'Usage-Based Billing - Healthy': 'A flag that describes whether the Usage-Based Billing admin setting is healthy.',
+  'Copilot Connectors':
+    'Copilot connectors status. Enable them so Copilot can access relevant organizational content from connected data sources to provide richer, grounded responses.',
+  'Copilot Connectors - Healthy': 'A flag that describes whether the Copilot Connectors admin setting is healthy.',
 };
+
+/** Copilot Credits columns: one definition per period (MTD, M-1, M-2), worded as in the MTD Credits Consumed flyout. */
+function creditDefs(): Record<string, string> {
+  const out: Record<string, string> = {};
+  const when = { MTD: 'for the current month (month to date)', 'M-1': 'for the prior month (M-1)', 'M-2': 'for two months prior (M-2)' };
+  (['MTD', 'M-1', 'M-2'] as const).forEach((p) => {
+    const w = when[p];
+    if (p !== 'MTD') out[`${p} Credits Consumed`] = `Total Copilot Credits consumed (pay-as-you-go and prepaid) ${w}.`;
+    out[`${p} PAYGO Credits Consumed`] = `Copilot Credits consumed and billed on a pay-as-you-go basis ${w}.`;
+    out[`${p} Pre-Paid Credits Consumed`] = `Copilot Credits consumed from prepaid credit capacity ${w}.`;
+    out[`${p} Non Billable Credits Consumed`] = `Copilot Credits consumed that are non-billable ${w}.`;
+    out[`${p} Overage`] = `Copilot Credits consumed beyond the configured limits ${w}.`;
+    out[p === 'MTD' ? 'Current Monthly Credit Limit' : `${p} Monthly Credit Limit`] =
+      `The total monthly Copilot Credits limit configured by the customer's admin across all billing plans ${w}.`;
+    out[p === 'MTD' ? 'Available Billable Credits' : `${p} Available Billable Credits`] =
+      `Remaining billable Copilot Credits available under the configured limit (the configured limit minus credits consumed) for billable plans ${w}.`;
+  });
+  return out;
+}
 
 /** Optional Spanish training notes. Technical terms intentionally left in English. */
 export const TRAINING_NOTES: Record<string, string> = {

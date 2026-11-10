@@ -1,5 +1,5 @@
 import type { TenantView } from './metrics';
-import { monthsUntil, PENETRATION_THRESHOLD } from './metrics';
+import { creditsConsumed, monthsUntil, PENETRATION_THRESHOLD, projectedMonthEnd } from './metrics';
 import { fmtInt, fmtMonth, fmtPct, fmtUsd } from './format';
 
 /**
@@ -9,16 +9,17 @@ import { fmtInt, fmtMonth, fmtPct, fmtUsd } from './format';
 export function tenantAdvice(t: TenantView): string[] {
   const out: string[] = [];
   const renewal = monthsUntil(t.largestCspRenewal);
-  const creditUse = t.credits ? t.mtdCredits! / t.credits.months[2].limit : 0;
+  const lastMonthUse = t.credits ? creditsConsumed(t.credits.months[1]) / t.credits.months[1].limit : 0;
+  const projectedUse = t.credits ? projectedMonthEnd(t.mtdCredits!) / t.credits.months[2].limit : 0;
 
   if (t.trialDaysRemaining != null && t.trialDaysRemaining <= 14) {
     out.push(
       `Trial activo (${t.trialRecommendation}) con ${t.trialDaysRemaining} días restantes: agenda una sesión de adopción esta semana y prepara la conversión a paid antes de que expire.`,
     );
   }
-  if (creditUse >= 0.85) {
+  if (lastMonthUse >= 0.85 || projectedUse >= 0.9) {
     out.push(
-      `MTD Credits Consumed al ${fmtPct(creditUse)} del Monthly Credit Limit (${fmtInt(t.monthlyCreditLimit)}): propone prepaid Copilot Credits o ajustar el límite para no frenar el uso de agents.`,
+      `M-1 consumió ${fmtPct(lastMonthUse)} del Monthly Credit Limit (${fmtInt(t.monthlyCreditLimit)}) y al ritmo actual noviembre cerraría en ${fmtPct(projectedUse)}: propone prepaid Copilot Credits o ajustar el límite para no frenar el uso de agents.`,
     );
   }
   if (t.adoptionStatus?.startsWith('Failure')) {
@@ -77,6 +78,22 @@ export const HERO_MOTION: Record<TenantView['scenario'], string> = {
   Monetize: 'Convert free Copilot Chat users to paid Microsoft 365 Copilot licenses, or monetize via agents and Copilot Credits.',
   Grow: 'Expand paid Microsoft 365 Copilot seats across additional users, teams and workloads.',
   'Not targeted': 'Nurture: the tenant does not meet the propensity threshold for targeting scenarios.',
+};
+
+/** Short "Opportunity Reasoning" value shown in the Opportunity Details flyout. */
+export const OPPORTUNITY_REASONING: Record<TenantView['scenario'], string> = {
+  Acquire: 'Low Copilot Chat MAU penetration and low Copilot paid license penetration',
+  Monetize: 'Penetrated with Copilot Chat MAU but not Copilot paid licenses',
+  Grow: 'Penetrated with Copilot Chat MAU and Copilot paid licenses',
+  'Not targeted': 'Does not meet the propensity threshold for targeting scenarios',
+};
+
+/** "Recommendation" box at the bottom of the Opportunity Details flyout. */
+export const RECOMMENDATION: Record<TenantView['scenario'], string> = {
+  Acquire: 'Grow free Copilot Chat usage (Copilot in 30 trial and Chat activation)',
+  Monetize: 'Upsell free Chat to paid (Agents and/or M365 Copilot)',
+  Grow: 'Expand paid M365 Copilot licenses to more users',
+  'Not targeted': 'Not available',
 };
 
 export function opportunityReasoning(t: TenantView): string {

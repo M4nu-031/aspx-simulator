@@ -16,8 +16,8 @@ Use it to teach Microsoft partners how to read ASPX **without exposing real cust
 | Layout | Top bar, breadcrumb, collapsible 265px sidebar, page header, pivot tabs, partner context selector |
 | KPI tiles | Tenants, Seat Penetration, Paid Utilization, Acquire, Monetize, Grow, E7 Upsell-ready, Potential Earnings (the last 5 filter the table) |
 | Charts | Copilot Tenant Penetration, Copilot Opportunities, Free-Paid Signals by Tenant, Copilot Usage by License, MCI Potential Earnings — click a segment/bar/line to filter the table |
-| Table | 54 default + 36 hidden columns, sticky first column, sort, Change columns (show/hide, reorder, Download-only), Filter drawer, search, CSV/XLSX download |
-| Flyouts | Tenant detail, Copilot Opportunity details, E7 Opportunity, All Copilot MAU, All Agents MAU, MTD Credits Consumed, Weekly Consumption, Admin Settings Recommendations |
+| Table | 54 default + 79 hidden columns (official hidden columns plus every field of the ABSSInsights export, e.g. M-1/M-2 credits, Cowork tasks and turns, Utilization MIP P2 / IRM), sticky first column, sort, Change columns (show/hide, reorder), Filter drawer, search, CSV/XLSX download |
+| Flyouts | Tenant detail (with the tenant's license list), Opportunity Details, E7 Opportunity, All Copilot MAU, All Agents MAU, MTD Credits Consumed, Weekly Consumption, Cowork MAU, Data Security Maturity, Admin Settings Recommendations |
 | Training mode | Numbered highlights with definitions + Spanish training notes, 10-step guided tour, 5 Playbooks, “What to do with this tenant” |
 
 All labels, definitions and flyout text are in **English**, taken from the Microsoft Learn
@@ -46,6 +46,13 @@ npm run build      # production build in dist/
   - Free Chat Penetration = Free MAU / Eligible
   - All Copilot MAU = Licensed + Unlicensed
   - Scenario: propensity Low → Not targeted; paid penetration > 5% → Grow; Chat MAU penetration > 5% → Monetize; otherwise Acquire
+- `src/lib/licensing.ts` — license list per tenant, Purview data security workloads and Cowork metrics.
+  Plan contents follow the Microsoft 365 Enterprise and Business comparison sheets (November 2026):
+  - Licenses: the Dominant SKU plan × Copilot Eligible M365 Seats, Microsoft Teams Rooms Pro for the remaining
+    (non-eligible) licenses, security add-ons, the Copilot add-on × Copilot PAU, and Copilot Credits plans.
+  - Data Security Maturity is *derived* (licensing Advanced / Limited / Minimal + Healthy when every licensed
+    workload is above its tipping point) and a test checks it equals the value in the table.
+  - Monthly Cowork Credits per User = 4 × weekly Cowork credits / Cowork MAU.
 - `src/lib/columns.ts` — column order, groups, formats and which flyout each link opens.
 - `src/lib/dictionary.ts` — official definitions (`DEFS`) and Spanish training notes (`TRAINING_NOTES`).
 - `src/lib/filters.ts` — Filter drawer facets and Playbooks.
@@ -62,7 +69,7 @@ so update `src/lib/metrics.test.ts` if you change the teaching cases on purpose.
 | 1 | Acquire | SME&C, OE1, no paid seats, Free Chat 2%, Offer Trial |
 | 2 | Acquire | SME&C, Business Premium, Offer Trial - High Propensity, MCI eligible |
 | 3 | Monetize | SME&C, OE3, Free Chat 18%, usage limits + license requests |
-| 4 | Monetize | Enterprise, ME3, heavy agents, PAYGO credits at 94% of the Monthly Credit Limit |
+| 4 | Monetize | Enterprise, ME3 + Microsoft Purview Suite (1,200 seats), heavy agents, PAYGO credits reached 94% of the Monthly Credit Limit in October (M-1) and the November pace projects above the limit |
 | 5 | Monetize | SME&C, OE1+EMS / OE1 Plus, trial “Drive Adoption – Churn Risk”, 9 days remaining |
 | 6 | Grow | Enterprise, ME5, Adoption Status Healthy, Largest Seat CSP Renewal in 4 months |
 | 7 | Grow | SME&C, ME3, Failure to Adopt, 3 Admin Settings need attention |

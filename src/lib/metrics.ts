@@ -1,4 +1,13 @@
-import { AS_OF, PARTNERS, type TenantRecord, type AdminSettings, type FrontierStatus } from '../data/tenants';
+import { AS_OF, PARTNERS, type TenantRecord, type AdminSettings, type FrontierStatus, type CreditMonth } from '../data/tenants';
+import {
+  coworkCreditsPerUser,
+  coworkMetrics,
+  dataSecurityProfile,
+  tenantLicenses,
+  type CoworkMetrics,
+  type DataSecurityProfile,
+  type LicenseLine,
+} from './licensing';
 
 export type Scenario = 'Acquire' | 'Monetize' | 'Grow' | 'Not targeted';
 export const SCENARIOS: Scenario[] = ['Acquire', 'Monetize', 'Grow', 'Not targeted'];
@@ -153,10 +162,33 @@ export interface TenantView extends TenantRecord {
   adminChecks: AdminCheck[];
   adminNeedsAttention: number;
   signals: { usageLimits: boolean; freeChat: boolean; licenseRequests: boolean };
+  coworkCreditsPerUser: number | null;
+  coworkStats: CoworkMetrics | null;
+  dataSecurity: DataSecurityProfile;
+  licenses: LicenseLine[];
 }
 
 export function creditsConsumed(m: { paygo: number; prepaid: number }): number {
   return m.paygo + m.prepaid;
+}
+
+/**
+ * Projected month-end consumption (simulator): MTD credits at the daily pace so far, extended to the
+ * whole month of the data snapshot (11/06/2026 → 6 of 30 days elapsed).
+ */
+export function projectedMonthEnd(mtd: number, asOf: Date = AS_OF): number {
+  const days = new Date(asOf.getFullYear(), asOf.getMonth() + 1, 0).getDate();
+  return Math.round((mtd / asOf.getDate()) * days);
+}
+
+/** Credits consumed beyond the configured monthly limit. */
+export function creditOverage(m: CreditMonth): number {
+  return Math.max(creditsConsumed(m) - m.limit, 0);
+}
+
+/** Remaining billable credits under the configured limit. */
+export function availableBillableCredits(m: CreditMonth): number {
+  return Math.max(m.limit - creditsConsumed(m), 0);
 }
 
 export function enrich(t: TenantRecord): TenantView {
@@ -193,7 +225,11 @@ export function enrich(t: TenantRecord): TenantView {
     pctFreeUsersReachingLimits: t.unlicensedMau > 0 ? t.usageLimitUsers / t.unlicensedMau : null,
     mtdCredits: mtd,
     monthlyCreditLimit: t.credits ? t.credits.months[2].limit : null,
-    weeklyConsumption: t.weekly ? t.weekly.cowork + t.weekly.workIq + t.weekly.githubCopilot + t.weekly.agents : null,
+    weeklyConsumption: t.weekly ? t.weekly.cowork + t.weekly.workIq + t.weekly.githubCopilot + t.weekly.deepWork : null,
+    coworkCreditsPerUser: coworkCreditsPerUser(t),
+    coworkStats: coworkMetrics(t),
+    dataSecurity: dataSecurityProfile(t),
+    licenses: tenantLicenses(t),
     adminChecks: checks,
     adminNeedsAttention: checks.filter((c) => !c.healthy).length,
     signals: {

@@ -1,7 +1,17 @@
-import type { TenantView } from './metrics';
+import { availableBillableCredits, creditOverage, creditsConsumed, type TenantView } from './metrics';
 import { fmtBool, fmtInt, fmtMonth, fmtPct, fmtText, fmtUsd } from './format';
 
-export type FlyoutKind = 'tenant' | 'opportunity' | 'e7' | 'allMau' | 'agents' | 'mtdCredits' | 'weekly' | 'admin';
+export type FlyoutKind =
+  | 'tenant'
+  | 'opportunity'
+  | 'e7'
+  | 'allMau'
+  | 'agents'
+  | 'mtdCredits'
+  | 'weekly'
+  | 'admin'
+  | 'cowork'
+  | 'dataSecurity';
 export type ColFormat = 'text' | 'int' | 'pct' | 'usd' | 'month' | 'bool';
 export type Raw = string | number | boolean | null;
 
@@ -107,8 +117,8 @@ export const COLUMNS: ColumnSpec[] = [
   { id: 'monthlyCreditLimit', header: 'Monthly Credit Limit', group: G[5], value: (t) => t.monthlyCreditLimit, format: 'int', width: 95 },
   { id: 'peakMonthly', header: 'Peak Monthly Consumption', group: G[5], value: (t) => t.credits?.peakMonthly ?? null, format: 'int', width: 105 },
   { id: 'weekly', header: 'Weekly Consumption', group: G[5], value: (t) => t.weeklyConsumption, format: 'int', flyout: 'weekly', width: 100 },
-  { id: 'coworkMau', header: 'Cowork MAU', group: G[5], value: (t) => t.coworkMau, format: 'int', width: 85 },
-  { id: 'coworkCredits', header: 'Monthly Cowork Credits per User', group: G[5], value: (t) => (t.coworkMau ? t.coworkCreditsPerUser : null), format: 'int', width: 110 },
+  { id: 'coworkMau', header: 'Cowork MAU', group: G[5], value: (t) => t.coworkMau, format: 'int', flyout: 'cowork', width: 85 },
+  { id: 'coworkCredits', header: 'Monthly Cowork Credits per User', group: G[5], value: (t) => t.coworkCreditsPerUser, format: 'int', width: 110 },
   // --- Opportunity & E7
   { id: 'scenario', header: 'Copilot Opportunity', group: G[6], value: (t) => t.scenario, format: 'text', flyout: 'opportunity', width: 110 },
   {
@@ -123,7 +133,7 @@ export const COLUMNS: ColumnSpec[] = [
   // --- Partner & incentives
   { id: 'partnerName', header: 'Partner Name', group: G[7], value: (t) => t.partnerName, format: 'text', width: 160 },
   { id: 'mpn', header: 'Partner Center ID (MPN)', group: G[7], value: (t) => t.partnerMpnId, format: 'text', width: 100 },
-  { id: 'dsm', header: 'Data Security Maturity', group: G[7], value: (t) => t.dataSecurityMaturity, format: 'text', width: 120 },
+  { id: 'dsm', header: 'Data Security Maturity', group: G[7], value: (t) => t.dataSecurityMaturity, format: 'text', flyout: 'dataSecurity', width: 120 },
   { id: 'mciEligibility', header: 'MCI Eligibility', group: G[7], value: (t) => (t.mciEligible ? 'Eligible' : 'Not eligible'), format: 'text', width: 95 },
   { id: 'claimId', header: 'Claim ID', group: G[7], value: (t) => t.claimId, format: 'text', width: 115 },
   { id: 'claimedByOthers', header: 'Claimed By Others', group: G[7], value: (t) => t.claimedByOthers, format: 'bool', width: 90 },
@@ -192,30 +202,97 @@ export const COLUMNS: ColumnSpec[] = [
   { id: 'nonProfit', header: 'Non-Profit Pricing', group: G[7], value: (t) => t.nonProfit, format: 'bool', hidden: true },
   { id: 'domain', header: 'Tenant Domain', group: G[0], value: (t) => t.tenantDomain, format: 'text', hidden: true, width: 150 },
   { id: 'cspPromotions', header: 'CSP Promotions', group: G[7], value: (t) => t.cspPromotions, format: 'text', hidden: true, width: 180 },
+
+  // ----- Hidden: flyout detail available as columns (ABSSInsights export layout) -----
+  { id: 'propensity', header: 'Copilot Purchase Propensity', group: G[6], value: (t) => t.propensity, format: 'text', hidden: true },
+  ...creditColumns(),
+  ...weeklyColumns(),
+  ...coworkColumns(),
+  { id: 'utilMipP2', header: 'Utilization MIP P2', group: G[7], value: (t) => secUtil(t, 'mipP2'), format: 'pct', hidden: true },
+  { id: 'utilIrm', header: 'Utilization IRM', group: G[7], value: (t) => secUtil(t, 'irm'), format: 'pct', hidden: true },
+  ...adminColumns(),
 ];
 
-/** Fields that only exist inside flyouts; selectable for Download only. */
-const mtd = (t: TenantView) => t.credits?.months[2] ?? null;
-export const DOWNLOAD_ONLY: ColumnSpec[] = [
-  { id: 'dl_paygo', header: 'PAYGO Credits Consumed', group: 'Download-only', value: (t) => mtd(t)?.paygo ?? null, format: 'int' },
-  { id: 'dl_prepaid', header: 'Prepaid Credits Consumed', group: 'Download-only', value: (t) => mtd(t)?.prepaid ?? null, format: 'int' },
-  { id: 'dl_nonbill', header: 'Non Billable Credits Consumed', group: 'Download-only', value: (t) => mtd(t)?.nonBillable ?? null, format: 'int' },
-  {
-    id: 'dl_avail',
-    header: 'Available Billable Credits',
-    group: 'Download-only',
-    value: (t) => {
-      const m = mtd(t);
-      return m ? Math.max(m.limit - m.paygo - m.prepaid, 0) : null;
-    },
-    format: 'int',
-  },
-  { id: 'dl_propensity', header: 'Copilot Purchase Propensity', group: 'Download-only', value: (t) => t.propensity, format: 'text' },
-  { id: 'dl_wkCowork', header: 'Cowork (Weekly)', group: 'Download-only', value: (t) => t.weekly?.cowork ?? null, format: 'int' },
-  { id: 'dl_wkWorkIq', header: 'Work IQ (Weekly)', group: 'Download-only', value: (t) => t.weekly?.workIq ?? null, format: 'int' },
-  { id: 'dl_wkGh', header: 'GitHub Copilot (Weekly)', group: 'Download-only', value: (t) => t.weekly?.githubCopilot ?? null, format: 'int' },
-  { id: 'dl_wkAgents', header: 'Agents (Weekly)', group: 'Download-only', value: (t) => t.weekly?.agents ?? null, format: 'int' },
-];
+/** Fields that only exist inside flyouts and are selectable for Download only (none left: all are columns now). */
+export const DOWNLOAD_ONLY: ColumnSpec[] = [];
+
+// ---------- hidden column builders ----------
+
+function secUtil(t: TenantView, key: 'mipP2' | 'irm'): number | null {
+  const w = t.dataSecurity.workloads.find((x) => x.key === key)!;
+  return w.pau > 0 ? w.utilization : null;
+}
+
+function creditColumns(): ColumnSpec[] {
+  // months: [M-2, M-1, MTD]
+  const periods: { idx: 0 | 1 | 2; p: string; id: string }[] = [
+    { idx: 2, p: 'MTD', id: 'mtd' },
+    { idx: 1, p: 'M-1', id: 'm1' },
+    { idx: 0, p: 'M-2', id: 'm2' },
+  ];
+  const at = (t: TenantView, i: number) => t.credits?.months[i] ?? null;
+  const n = (v: number | undefined) => (v == null ? null : v);
+  const cols: ColumnSpec[] = [
+    { id: 'm1Credits', header: 'M-1 Credits Consumed', group: G[5], value: (t) => (at(t, 1) ? creditsConsumed(at(t, 1)!) : null), format: 'int', hidden: true },
+    { id: 'm2Credits', header: 'M-2 Credits Consumed', group: G[5], value: (t) => (at(t, 0) ? creditsConsumed(at(t, 0)!) : null), format: 'int', hidden: true },
+  ];
+  for (const { idx, p, id } of periods) {
+    cols.push({ id: `${id}Paygo`, header: `${p} PAYGO Credits Consumed`, group: G[5], value: (t) => n(at(t, idx)?.paygo), format: 'int', hidden: true });
+    cols.push({ id: `${id}Prepaid`, header: `${p} Pre-Paid Credits Consumed`, group: G[5], value: (t) => n(at(t, idx)?.prepaid), format: 'int', hidden: true });
+  }
+  for (const { idx, p, id } of periods) {
+    cols.push({ id: `${id}NonBill`, header: `${p} Non Billable Credits Consumed`, group: G[5], value: (t) => n(at(t, idx)?.nonBillable), format: 'int', hidden: true });
+  }
+  for (const { idx, p, id } of periods) {
+    cols.push({ id: `${id}Overage`, header: `${p} Overage`, group: G[5], value: (t) => (at(t, idx) ? creditOverage(at(t, idx)!) : null), format: 'int', hidden: true });
+  }
+  for (const { idx, p, id } of periods) {
+    const header = p === 'MTD' ? 'Current Monthly Credit Limit' : `${p} Monthly Credit Limit`;
+    cols.push({ id: `${id}Limit`, header, group: G[5], value: (t) => n(at(t, idx)?.limit), format: 'int', hidden: true });
+  }
+  for (const { idx, p, id } of periods) {
+    const header = p === 'MTD' ? 'Available Billable Credits' : `${p} Available Billable Credits`;
+    cols.push({ id: `${id}Avail`, header, group: G[5], value: (t) => (at(t, idx) ? availableBillableCredits(at(t, idx)!) : null), format: 'int', hidden: true });
+  }
+  return cols;
+}
+
+function weeklyColumns(): ColumnSpec[] {
+  const w = (t: TenantView) => t.weekly;
+  return [
+    { id: 'wkCowork', header: 'Cowork Credits Consumed', group: G[5], value: (t) => w(t)?.cowork ?? null, format: 'int', hidden: true },
+    { id: 'wkWorkIq', header: 'WorkIQ Credits Consumed', group: G[5], value: (t) => w(t)?.workIq ?? null, format: 'int', hidden: true },
+    { id: 'wkGh', header: 'GitHub Copilot Credits Consumed', group: G[5], value: (t) => w(t)?.githubCopilot ?? null, format: 'int', hidden: true },
+    { id: 'wkDeep', header: 'Deepwork Credits Consumed', group: G[5], value: (t) => w(t)?.deepWork ?? null, format: 'int', hidden: true },
+  ];
+}
+
+function coworkColumns(): ColumnSpec[] {
+  const c = (t: TenantView) => t.coworkStats;
+  return [
+    { id: 'cwRetention', header: 'Cowork MoM Retention', group: G[5], value: (t) => c(t)?.momRetention ?? null, format: 'pct', hidden: true },
+    { id: 'cwTasks', header: 'Total Cowork Tasks', group: G[5], value: (t) => c(t)?.totalTasks ?? null, format: 'int', hidden: true },
+    { id: 'cwScheduled', header: 'Scheduled Cowork Tasks', group: G[5], value: (t) => c(t)?.scheduledTasks ?? null, format: 'int', hidden: true },
+    { id: 'cwInteractive', header: 'Interactive Tasks', group: G[5], value: (t) => c(t)?.interactiveTasks ?? null, format: 'int', hidden: true },
+    { id: 'cwSucceed', header: 'Turns Succeed', group: G[5], value: (t) => c(t)?.turnsSucceeded ?? null, format: 'int', hidden: true },
+    { id: 'cwFailed', header: 'Turns Failed', group: G[5], value: (t) => c(t)?.turnsFailed ?? null, format: 'int', hidden: true },
+    { id: 'cwAbandoned', header: 'Turns Abandoned', group: G[5], value: (t) => c(t)?.turnsAbandoned ?? null, format: 'int', hidden: true },
+    { id: 'cwSuccessRate', header: 'Turns Success Rate', group: G[5], value: (t) => c(t)?.turnsSuccessRate ?? null, format: 'pct', hidden: true },
+  ];
+}
+
+function adminColumns(): ColumnSpec[] {
+  const pair = (id: string, header: string, key: string): ColumnSpec[] => [
+    { id, header, group: G[3], value: (t) => t.adminChecks.find((c) => c.key === key)!.value, format: 'text', hidden: true },
+    { id: `${id}H`, header: `${header} - Healthy`, group: G[3], value: (t) => check(t, key), format: 'bool', hidden: true },
+  ];
+  return [
+    ...pair('copilotFrontier', 'Copilot Frontier', 'frontier'),
+    ...pair('teamsTranscription', 'Teams Transcription', 'transcription'),
+    ...pair('ubb', 'Usage-Based Billing', 'ubb'),
+    ...pair('copilotConnectors', 'Copilot Connectors', 'connectors'),
+  ];
+}
 
 export const DEFAULT_ORDER = COLUMNS.map((c) => c.id);
 export const DEFAULT_VISIBILITY: Record<string, boolean> = Object.fromEntries(COLUMNS.map((c) => [c.id, !c.hidden]));

@@ -67,7 +67,36 @@ export interface WeeklyConsumption {
   cowork: number;
   workIq: number;
   githubCopilot: number;
-  agents: number;
+  deepWork: number;
+}
+
+export interface CoworkUsage {
+  /** Cowork users in the prior rolling 28-day period. */
+  priorPeriodUsers: number;
+  /** Prior-period users who returned in the current period. */
+  returningUsers: number;
+  scheduledTasks: number;
+  interactiveTasks: number;
+  turnsSucceeded: number;
+  turnsFailed: number;
+  turnsAbandoned: number;
+}
+
+/** MPU per workload; DPU only for the workloads that report it. */
+export interface DataSecurityUsage {
+  mipP2: number;
+  irm: number;
+  mip: number;
+  dlm: number;
+  dnr: number;
+  dlmP2: number;
+  dnrP2: number;
+  dpu: { mipP2: number; irm: number; mip: number; dnr: number };
+}
+
+export interface SecurityAddOn {
+  sku: 'Microsoft Purview Suite';
+  seats: number;
 }
 
 export interface AdminSettings {
@@ -122,7 +151,12 @@ export interface TenantRecord {
   credits: Credits | null;
   weekly: WeeklyConsumption | null;
   coworkMau: number;
-  coworkCreditsPerUser: number;
+  /** Cowork activity over the last rolling 28 days (null = no Cowork usage). */
+  cowork: CoworkUsage | null;
+  /** Monthly active users per Purview data security workload (DPU: daily, where reported). */
+  dataSecurityUsage: DataSecurityUsage;
+  /** Security add-on subscriptions on top of the dominant SKU (e.g. Microsoft Purview Suite). */
+  securityAddOns: SecurityAddOn[];
   e7SubScenario: E7SubScenario | null;
   agentIntensity: AgentIntensity;
   entraPenetration: number;
@@ -158,7 +192,6 @@ export const PARTNERS: Partner[] = [
   { id: 'p3', name: 'Andes Nube Consultores S.A.S.', mpnId: '6100303' },
 ];
 
-const noApps: AppMau = { word: 0, excel: 0, powerpoint: 0, outlook: 0, teams: 0, onenote: 0, engage: 0, salesCrm: 0 };
 
 const healthyAdmin: AdminSettings = {
   webSearch: 'Enabled',
@@ -203,12 +236,14 @@ export const TENANTS: TenantRecord[] = [
     frontier: 'Disabled',
     usageLimitUsers: 0,
     licenseRequests: 0,
-    apps: noApps,
+    apps: { word: 1, excel: 1, powerpoint: 0, outlook: 2, teams: 3, onenote: 0, engage: 0, salesCrm: 0 },
     agents: { chat: 2, connector: 0, plugins: 0, customEngine: 0 },
     credits: null,
     weekly: null,
     coworkMau: 0,
-    coworkCreditsPerUser: 0,
+    cowork: null,
+    dataSecurityUsage: { mipP2: 0, irm: 0, mip: 0, dlm: 40, dnr: 172, dlmP2: 0, dnrP2: 0, dpu: { mipP2: 0, irm: 0, mip: 0, dnr: 150 } },
+    securityAddOns: [],
     e7SubScenario: null,
     agentIntensity: 'Low',
     entraPenetration: 0.35,
@@ -262,12 +297,14 @@ export const TENANTS: TenantRecord[] = [
     frontier: 'Disabled',
     usageLimitUsers: 0,
     licenseRequests: 0,
-    apps: { word: 2, excel: 1, powerpoint: 1, outlook: 2, teams: 2, onenote: 0, engage: 0, salesCrm: 0 },
+    apps: { word: 3, excel: 2, powerpoint: 1, outlook: 3, teams: 4, onenote: 1, engage: 0, salesCrm: 0 },
     agents: { chat: 2, connector: 0, plugins: 0, customEngine: 0 },
     credits: null,
     weekly: null,
     coworkMau: 0,
-    coworkCreditsPerUser: 0,
+    cowork: null,
+    dataSecurityUsage: { mipP2: 0, irm: 0, mip: 52, dlm: 30, dnr: 90, dlmP2: 0, dnrP2: 0, dpu: { mipP2: 0, irm: 0, mip: 38, dnr: 70 } },
+    securityAddOns: [],
     e7SubScenario: null,
     agentIntensity: 'Low',
     entraPenetration: 0.88,
@@ -321,12 +358,14 @@ export const TENANTS: TenantRecord[] = [
     frontier: 'Disabled',
     usageLimitUsers: 22,
     licenseRequests: 14,
-    apps: noApps,
+    apps: { word: 48, excel: 35, powerpoint: 22, outlook: 70, teams: 82, onenote: 9, engage: 4, salesCrm: 0 },
     agents: { chat: 30, connector: 0, plugins: 0, customEngine: 0 },
     credits: null,
     weekly: null,
     coworkMau: 0,
-    coworkCreditsPerUser: 0,
+    cowork: null,
+    dataSecurityUsage: { mipP2: 0, irm: 0, mip: 260, dlm: 150, dnr: 610, dlmP2: 0, dnrP2: 0, dpu: { mipP2: 0, irm: 0, mip: 180, dnr: 480 } },
+    securityAddOns: [],
     e7SubScenario: null,
     agentIntensity: 'Low',
     entraPenetration: 0.41,
@@ -380,19 +419,21 @@ export const TENANTS: TenantRecord[] = [
     frontier: 'Partially enabled',
     usageLimitUsers: 48,
     licenseRequests: 31,
-    apps: { word: 70, excel: 52, powerpoint: 38, outlook: 81, teams: 90, onenote: 9, engage: 6, salesCrm: 4 },
+    apps: { word: 300, excel: 220, powerpoint: 140, outlook: 410, teams: 470, onenote: 40, engage: 25, salesCrm: 4 },
     agents: { chat: 380, connector: 95, plugins: 60, customEngine: 45 },
     credits: {
       months: [
         { paygo: 28000, prepaid: 0, nonBillable: 1200, limit: 50000 },
-        { paygo: 38500, prepaid: 0, nonBillable: 1400, limit: 50000 },
-        { paygo: 46800, prepaid: 0, nonBillable: 900, limit: 50000 },
+        { paygo: 47000, prepaid: 0, nonBillable: 1400, limit: 50000 },
+        { paygo: 10200, prepaid: 0, nonBillable: 300, limit: 50000 },
       ],
-      peakMonthly: 46800,
+      peakMonthly: 47000,
     },
-    weekly: { cowork: 2100, workIq: 3400, githubCopilot: 1800, agents: 4600 },
+    weekly: { cowork: 2100, workIq: 3400, githubCopilot: 1800, deepWork: 4600 },
     coworkMau: 45,
-    coworkCreditsPerUser: 46,
+    cowork: { priorPeriodUsers: 38, returningUsers: 30, scheduledTasks: 260, interactiveTasks: 790, turnsSucceeded: 3560, turnsFailed: 280, turnsAbandoned: 180 },
+    dataSecurityUsage: { mipP2: 540, irm: 1150, mip: 2900, dlm: 1600, dnr: 3720, dlmP2: 300, dnrP2: 1120, dpu: { mipP2: 400, irm: 900, mip: 2300, dnr: 3100 } },
+    securityAddOns: [{ sku: 'Microsoft Purview Suite', seats: 1200 }],
     e7SubScenario: null,
     agentIntensity: 'Medium',
     entraPenetration: 0.64,
@@ -446,12 +487,14 @@ export const TENANTS: TenantRecord[] = [
     frontier: 'Disabled',
     usageLimitUsers: 6,
     licenseRequests: 3,
-    apps: { word: 9, excel: 4, powerpoint: 3, outlook: 14, teams: 11, onenote: 1, engage: 0, salesCrm: 0 },
+    apps: { word: 24, excel: 13, powerpoint: 8, outlook: 38, teams: 44, onenote: 3, engage: 1, salesCrm: 0 },
     agents: { chat: 12, connector: 0, plugins: 0, customEngine: 0 },
     credits: null,
     weekly: null,
     coworkMau: 0,
-    coworkCreditsPerUser: 0,
+    cowork: null,
+    dataSecurityUsage: { mipP2: 0, irm: 0, mip: 120, dlm: 60, dnr: 250, dlmP2: 0, dnrP2: 0, dpu: { mipP2: 0, irm: 0, mip: 85, dnr: 200 } },
+    securityAddOns: [],
     e7SubScenario: null,
     agentIntensity: 'Low',
     entraPenetration: 0.7,
@@ -505,19 +548,21 @@ export const TENANTS: TenantRecord[] = [
     frontier: 'Partially enabled',
     usageLimitUsers: 0,
     licenseRequests: 42,
-    apps: { word: 330, excel: 260, powerpoint: 190, outlook: 420, teams: 470, onenote: 45, engage: 30, salesCrm: 18 },
+    apps: { word: 520, excel: 410, powerpoint: 290, outlook: 640, teams: 700, onenote: 75, engage: 50, salesCrm: 18 },
     agents: { chat: 140, connector: 35, plugins: 20, customEngine: 10 },
     credits: {
       months: [
         { paygo: 8000, prepaid: 12000, nonBillable: 600, limit: 40000 },
         { paygo: 9500, prepaid: 12000, nonBillable: 700, limit: 40000 },
-        { paygo: 7200, prepaid: 9000, nonBillable: 400, limit: 40000 },
+        { paygo: 0, prepaid: 4200, nonBillable: 120, limit: 40000 },
       ],
       peakMonthly: 21500,
     },
-    weekly: { cowork: 1400, workIq: 2200, githubCopilot: 900, agents: 1700 },
+    weekly: { cowork: 1100, workIq: 1740, githubCopilot: 710, deepWork: 1350 },
     coworkMau: 60,
-    coworkCreditsPerUser: 28,
+    cowork: { priorPeriodUsers: 58, returningUsers: 49, scheduledTasks: 210, interactiveTasks: 520, turnsSucceeded: 2450, turnsFailed: 110, turnsAbandoned: 70 },
+    dataSecurityUsage: { mipP2: 1300, irm: 2250, mip: 2100, dlm: 900, dnr: 2350, dlmP2: 600, dnrP2: 2200, dpu: { mipP2: 950, irm: 1700, mip: 1600, dnr: 1900 } },
+    securityAddOns: [],
     e7SubScenario: null,
     agentIntensity: 'Low',
     entraPenetration: 0.95,
@@ -571,12 +616,14 @@ export const TENANTS: TenantRecord[] = [
     frontier: 'Partially enabled',
     usageLimitUsers: 0,
     licenseRequests: 0,
-    apps: { word: 18, excel: 9, powerpoint: 6, outlook: 21, teams: 15, onenote: 2, engage: 0, salesCrm: 0 },
+    apps: { word: 32, excel: 17, powerpoint: 10, outlook: 50, teams: 55, onenote: 4, engage: 1, salesCrm: 0 },
     agents: { chat: 14, connector: 0, plugins: 0, customEngine: 0 },
     credits: null,
     weekly: null,
     coworkMau: 0,
-    coworkCreditsPerUser: 0,
+    cowork: null,
+    dataSecurityUsage: { mipP2: 0, irm: 0, mip: 150, dlm: 70, dnr: 400, dlmP2: 0, dnrP2: 0, dpu: { mipP2: 0, irm: 0, mip: 100, dnr: 310 } },
+    securityAddOns: [],
     e7SubScenario: null,
     agentIntensity: 'Low',
     entraPenetration: 0.82,
@@ -630,19 +677,21 @@ export const TENANTS: TenantRecord[] = [
     frontier: 'Enabled',
     usageLimitUsers: 64,
     licenseRequests: 88,
-    apps: { word: 540, excel: 430, powerpoint: 310, outlook: 690, teams: 740, onenote: 80, engage: 55, salesCrm: 120 },
+    apps: { word: 1050, excel: 820, powerpoint: 590, outlook: 1300, teams: 1450, onenote: 150, engage: 110, salesCrm: 120 },
     agents: { chat: 620, connector: 210, plugins: 140, customEngine: 95 },
     credits: {
       months: [
         { paygo: 30000, prepaid: 25000, nonBillable: 2100, limit: 120000 },
         { paygo: 38000, prepaid: 25000, nonBillable: 2600, limit: 120000 },
-        { paygo: 46000, prepaid: 25000, nonBillable: 1900, limit: 120000 },
+        { paygo: 7800, prepaid: 6000, nonBillable: 450, limit: 120000 },
       ],
-      peakMonthly: 71000,
+      peakMonthly: 63000,
     },
-    weekly: { cowork: 9600, workIq: 7200, githubCopilot: 5400, agents: 8800 },
+    weekly: { cowork: 4980, workIq: 3740, githubCopilot: 2800, deepWork: 4580 },
     coworkMau: 310,
-    coworkCreditsPerUser: 62,
+    cowork: { priorPeriodUsers: 240, returningUsers: 205, scheduledTasks: 1350, interactiveTasks: 3900, turnsSucceeded: 17900, turnsFailed: 620, turnsAbandoned: 480 },
+    dataSecurityUsage: { mipP2: 2600, irm: 3800, mip: 3700, dlm: 1500, dnr: 3950, dlmP2: 1100, dnrP2: 3700, dpu: { mipP2: 2000, irm: 3000, mip: 2900, dnr: 3300 } },
+    securityAddOns: [],
     e7SubScenario: 'ME5 with H/M agent intensity',
     agentIntensity: 'High',
     entraPenetration: 0.92,
@@ -699,19 +748,21 @@ export const TENANTS: TenantRecord[] = [
     frontier: 'Disabled',
     usageLimitUsers: 35,
     licenseRequests: 20,
-    apps: { word: 22, excel: 18, powerpoint: 11, outlook: 29, teams: 31, onenote: 3, engage: 0, salesCrm: 0 },
+    apps: { word: 120, excel: 90, powerpoint: 50, outlook: 190, teams: 220, onenote: 12, engage: 4, salesCrm: 0 },
     agents: { chat: 190, connector: 40, plugins: 25, customEngine: 15 },
     credits: {
       months: [
         { paygo: 6000, prepaid: 0, nonBillable: 500, limit: 20000 },
         { paygo: 7800, prepaid: 0, nonBillable: 650, limit: 20000 },
-        { paygo: 9400, prepaid: 0, nonBillable: 300, limit: 20000 },
+        { paygo: 1900, prepaid: 0, nonBillable: 60, limit: 20000 },
       ],
-      peakMonthly: 9400,
+      peakMonthly: 7800,
     },
-    weekly: { cowork: 300, workIq: 1100, githubCopilot: 700, agents: 2400 },
+    weekly: { cowork: 150, workIq: 540, githubCopilot: 350, deepWork: 1180 },
     coworkMau: 12,
-    coworkCreditsPerUser: 25,
+    cowork: { priorPeriodUsers: 5, returningUsers: 3, scheduledTasks: 25, interactiveTasks: 115, turnsSucceeded: 410, turnsFailed: 70, turnsAbandoned: 55 },
+    dataSecurityUsage: { mipP2: 0, irm: 0, mip: 300, dlm: 90, dnr: 1540, dlmP2: 0, dnrP2: 0, dpu: { mipP2: 0, irm: 0, mip: 210, dnr: 1200 } },
+    securityAddOns: [],
     e7SubScenario: 'ME3 with H/M agent intensity',
     agentIntensity: 'Medium',
     entraPenetration: 0.78,
@@ -764,12 +815,14 @@ export const TENANTS: TenantRecord[] = [
     frontier: 'Disabled',
     usageLimitUsers: 0,
     licenseRequests: 0,
-    apps: noApps,
+    apps: { word: 0, excel: 0, powerpoint: 0, outlook: 0, teams: 1, onenote: 0, engage: 0, salesCrm: 0 },
     agents: { chat: 0, connector: 0, plugins: 0, customEngine: 0 },
     credits: null,
     weekly: null,
     coworkMau: 0,
-    coworkCreditsPerUser: 0,
+    cowork: null,
+    dataSecurityUsage: { mipP2: 0, irm: 0, mip: 0, dlm: 0, dnr: 20, dlmP2: 0, dnrP2: 0, dpu: { mipP2: 0, irm: 0, mip: 0, dnr: 15 } },
+    securityAddOns: [],
     e7SubScenario: null,
     agentIntensity: 'Low',
     entraPenetration: 0.2,

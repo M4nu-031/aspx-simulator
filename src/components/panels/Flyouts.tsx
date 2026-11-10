@@ -3,9 +3,11 @@ import ReactECharts from 'echarts-for-react';
 import { Link } from '@fluentui/react-components';
 import { CheckmarkCircle20Filled, Lightbulb20Regular, Open16Regular, Warning20Filled } from '@fluentui/react-icons';
 import type { TenantView } from '../../lib/metrics';
-import { creditsConsumed, PENETRATION_THRESHOLD } from '../../lib/metrics';
-import { fmtBool, fmtInt, fmtMonth, fmtPct, fmtText, fmtUsd } from '../../lib/format';
-import { HERO_MOTION, opportunityReasoning, tenantAdvice } from '../../lib/advice';
+import { availableBillableCredits, creditOverage, PENETRATION_THRESHOLD, projectedMonthEnd } from '../../lib/metrics';
+import type { FlyoutKind } from '../../lib/columns';
+import { fmtBool, fmtInt, fmtMonth, fmtPct, fmtText, fmtUsd, NA } from '../../lib/format';
+import { OPPORTUNITY_REASONING, RECOMMENDATION, opportunityReasoning, tenantAdvice } from '../../lib/advice';
+import { InfoTip } from '../InfoTip';
 import { useApp } from '../../store';
 import { Drawer } from './Drawer';
 
@@ -35,12 +37,11 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Pill({ s }: { s: string }) {
-  return <span className={`pill ${s.replace(' ', '-')}`}>{s}</span>;
-}
-
 function MiniBars({ items, color = '#4f6bed' }: { items: { label: string; value: number }[]; color?: string }) {
   const max = Math.max(1, ...items.map((i) => i.value));
+  if (items.every((i) => i.value === 0)) {
+    return <p className="flyout-foot">No usage recorded in the last 28 days (all values are 0).</p>;
+  }
   return (
     <div className="mini-bars" role="list">
       {items.map((i) => (
@@ -77,7 +78,7 @@ function Meter({ label, value, threshold = PENETRATION_THRESHOLD, color }: { lab
   );
 }
 
-function OpenLink({ kind, t, children }: { kind: 'opportunity' | 'e7' | 'allMau' | 'agents' | 'mtdCredits' | 'weekly' | 'admin'; t: TenantView; children: ReactNode }) {
+function OpenLink({ kind, t, children }: { kind: Exclude<FlyoutKind, 'tenant'>; t: TenantView; children: ReactNode }) {
   const open = useApp((s) => s.openPanel);
   return (
     <button className="cell-link" onClick={() => open({ kind, tenantKey: t.caseNo })}>
@@ -149,10 +150,11 @@ export function TenantFlyout({ t }: P) {
             ['Customer Sub-Segment', t.subSegment],
             ['Industry / Vertical', t.industry],
             ['Dominant SKU Group', t.dominantSku],
-            ['Data Security Maturity', t.dataSecurityMaturity],
+            ['Data Security Maturity', <OpenLink kind="dataSecurity" t={t}>{t.dataSecurityMaturity}</OpenLink>],
           ]}
         />
       </Section>
+      <LicensesSection t={t} />
       <Section title="Renewals and partner">
         <KV
           rows={[
@@ -171,44 +173,216 @@ export function TenantFlyout({ t }: P) {
   );
 }
 
-// ---------------- Copilot Opportunity details ----------------
-export function OpportunityFlyout({ t }: P) {
+// ---------------- Licenses (inside Tenant detail) ----------------
+function LicensesSection({ t }: P) {
+  const otherChannels = t.totalM365Licenses - t.cspTransactedLicenses;
   return (
-    <Drawer title="Copilot Opportunity details">
-      <h2 style={{ fontSize: 16, margin: '0 0 12px' }}>{t.tenantName}</h2>
-      <Section title="Copilot Opportunity">
-        <KV
-          rows={[
-            ['Scenario', <Pill s={t.scenario} />],
-            ['Copilot Purchase Propensity', t.propensity],
-          ]}
-        />
-        <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>{t.propensityReasoning}</p>
-      </Section>
-      <Section title="Criteria met">
-        <div className="criteria">
-          <Meter label="M365 Copilot Penetration (paid)" value={t.paidPenetration} color="#4f6bed" />
-          <Meter label="Copilot Chat Penetration (Chat MAU)" value={t.freeChatPenetration} color="#1aa0c8" />
+    <section className="panel-section" aria-label="Licenses">
+      <h3>Licenses</h3>
+      <table className="grid lic-table">
+        <thead>
+          <tr>
+            <th scope="col">Product</th>
+            <th scope="col" className="num">
+              Seats
+            </th>
+            <th scope="col">Copilot Chat</th>
+          </tr>
+        </thead>
+        <tbody>
+          {t.licenses.map((l) => (
+            <tr key={l.product}>
+              <th scope="row">
+                <div>{l.product}</div>
+                <div className="lic-note">{l.note}</div>
+              </th>
+              <td className="num">{l.seats == null ? '—' : fmtInt(l.seats)}</td>
+              <td>{l.copilotChat}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <KV
+        rows={[
+          ['Total M365 licenses', fmtInt(t.totalM365Licenses)],
+          ['Copilot Eligible M365 Seats', fmtInt(t.eligibleSeats)],
+          ['CSP Transacted Licenses', `${fmtInt(t.cspTransactedLicenses)} (${fmtPct(t.cspTransactedPct)})`],
+          ['Licenses from other channels (EA / other partners)', fmtInt(otherChannels)],
+          ['Copilot PAU', fmtInt(t.pau)],
+        ]}
+      />
+    </section>
+  );
+}
+
+// ---------------- Copilot Opportunity details ----------------
+const LEARN_COPILOT = 'https://learn.microsoft.com/partner-center/insights/growth-opportunities-data/copilot#copilot-opportunity-data-dictionary';
+
+function NewBadge() {
+  return <span className="new-badge">New</span>;
+}
+
+export function OpportunityFlyout({ t }: P) {
+  const training = useApp((s) => s.training);
+  const rows: [ReactNode, ReactNode][] = [
+    ['Opportunity:', t.scenario],
+    ['M365 Dominant SKU:', t.dominantSku],
+    ['M365 Copilot Penetration:', fmtPct(t.paidPenetration)],
+    ['Free Copilot Chat Penetration:', fmtPct(t.freeChatPenetration)],
+    ['Copilot Eligible Seats:', fmtInt(t.eligibleSeats)],
+    ['M365 Copilot Whitespace:', fmtInt(t.seatsWhitespace)],
+    ['Free Chat MAU Whitespace:', fmtInt(t.freeChatWhitespace)],
+    [
+      <span className="label-with-tip">
+        Users Experiencing Usage Limits: <InfoTip term="Monthly Users Experiencing Usage Limits" /> <NewBadge />
+      </span>,
+      fmtInt(t.usageLimitUsers),
+    ],
+    [
+      <span className="label-with-tip">
+        Cumulative License Requests: <InfoTip term="Cumulative License Requests" /> <NewBadge />
+      </span>,
+      fmtInt(t.licenseRequests),
+    ],
+    ['Opportunity Reasoning:', OPPORTUNITY_REASONING[t.scenario]],
+    ['Copilot Purchase Propensity:', t.propensity],
+    ['Copilot Purchase Propensity Reasoning:', t.propensityReasoning || NA],
+  ];
+  return (
+    <Drawer title="Opportunity Details">
+      <p className="flyout-intro">
+        The Copilot Opportunity value provides direction on what next steps to take with the customer. Included below are key penetration metrics and
+        AI/ML insights that explain why the customer is categorized as acquire, monetize, or grow.{' '}
+        <Link href={LEARN_COPILOT} target="_blank" rel="noreferrer">
+          Learn more <Open16Regular style={{ verticalAlign: 'middle' }} />
+        </Link>
+      </p>
+      <div className="opp-tenant">{t.tenantName}</div>
+      <table className="opp-table">
+        <tbody>
+          {rows.map(([k, v], i) => (
+            <tr key={i}>
+              <th scope="row">{k}</th>
+              <td>{v}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="recommendation">
+        <div className="rec-title">
+          <Lightbulb20Regular /> Recommendation
         </div>
-        <p style={{ fontSize: 13, lineHeight: 1.5 }}>
-          <b>Opportunity Reasoning: </b>
-          {opportunityReasoning(t)}
-        </p>
-      </Section>
-      <Section title="Hero motion">
-        <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0 }}>{HERO_MOTION[t.scenario]}</p>
-      </Section>
-      <Section title="Key metrics">
-        <KV
-          rows={[
-            ['Copilot Eligible Seats', fmtInt(t.eligibleSeats)],
-            ['M365 Copilot Whitespace', fmtInt(t.seatsWhitespace)],
-            ['Copilot Chat Whitespace', fmtInt(t.freeChatWhitespace)],
-            ['Users Experiencing Usage Limits', fmtInt(t.usageLimitUsers)],
-            ['License Request User Count', fmtInt(t.licenseRequests)],
-          ]}
-        />
-      </Section>
+        <div>{RECOMMENDATION[t.scenario]}</div>
+      </div>
+      {training && (
+        <Section title="Criteria met (training)">
+          <div className="criteria">
+            <Meter label="M365 Copilot Penetration (paid)" value={t.paidPenetration} color="#4f6bed" />
+            <Meter label="Copilot Chat Penetration (Chat MAU)" value={t.freeChatPenetration} color="#1aa0c8" />
+          </div>
+          <p style={{ fontSize: 13, lineHeight: 1.5 }}>{opportunityReasoning(t)}</p>
+        </Section>
+      )}
+    </Drawer>
+  );
+}
+
+// ---------------- Cowork MAU ----------------
+export function CoworkFlyout({ t }: P) {
+  const c = t.coworkStats;
+  const v = (x: number | null | undefined, f: (n: number) => string) => (x == null ? <span className="na">{NA}</span> : f(x));
+  const rows: [string, ReactNode][] = [
+    ['Cowork MAU', fmtInt(t.coworkMau)],
+    ['Cowork MoM Retention', v(c?.momRetention, (n) => fmtPct(n))],
+    ['Total Cowork Tasks', v(c?.totalTasks, fmtInt)],
+    ['Scheduled Cowork Tasks', v(c?.scheduledTasks, fmtInt)],
+    ['Interactive Tasks', v(c?.interactiveTasks, fmtInt)],
+    ['Turns Succeed', v(c?.turnsSucceeded, fmtInt)],
+    ['Turns Failed', v(c?.turnsFailed, fmtInt)],
+    ['Turns Abandoned', v(c?.turnsAbandoned, fmtInt)],
+    ['Turns Success Rate', v(c?.turnsSuccessRate, (n) => fmtPct(n))],
+  ];
+  return (
+    <Drawer title="Cowork MAU">
+      <h2 style={{ fontSize: 16, margin: '0 0 12px' }}>{t.tenantName}</h2>
+      <table className="metric-table">
+        <thead>
+          <tr>
+            <th scope="col">Metric Name</th>
+            <th scope="col">Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([k, val]) => (
+            <tr key={k}>
+              <th scope="row">{k}</th>
+              <td>{val}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="flyout-foot">Last rolling 28 days. Monthly Cowork Credits per User: {fmtInt(t.coworkCreditsPerUser)}</p>
+    </Drawer>
+  );
+}
+
+// ---------------- Data Security Maturity ----------------
+export function DataSecurityFlyout({ t }: P) {
+  const d = t.dataSecurity;
+  const workshops = t.mciEngagements.filter((e) => /secur/i.test(e.name)).map((e) => e.name);
+  const dash = (n: number | null) => (n == null ? '-' : fmtInt(n));
+  return (
+    <Drawer title="Data Security Maturity">
+      <h2 style={{ fontSize: 16, margin: '0 0 12px' }}>{t.tenantName}</h2>
+      <table className="opp-table compact">
+        <tbody>
+          <tr>
+            <th scope="row">Dominant Sku:</th>
+            <td>{t.dominantSku}</td>
+          </tr>
+          <tr>
+            <th scope="row">Security Licensing:</th>
+            <td>{d.licensing}</td>
+          </tr>
+          <tr>
+            <th scope="row">Data Security Health:</th>
+            <td>{d.health}</td>
+          </tr>
+          <tr>
+            <th scope="row">Eligible MCI Workshops:</th>
+            <td>{workshops.length ? workshops.join('; ') : '-'}</td>
+          </tr>
+        </tbody>
+      </table>
+      <table className="grid ds-table">
+        <thead>
+          <tr>
+            <th scope="col">Workload</th>
+            <th scope="col">MPU</th>
+            <th scope="col">DPU</th>
+            <th scope="col">PAU</th>
+            <th scope="col">Utilization (MPU)</th>
+            <th scope="col">Tipping Point (MPU)</th>
+            <th scope="col">Usage Threshold</th>
+          </tr>
+        </thead>
+        <tbody>
+          {d.workloads.map((w) => (
+            <tr key={w.key}>
+              <th scope="row">{w.label}</th>
+              <td>{fmtInt(w.mpu)}</td>
+              <td>{dash(w.dpu)}</td>
+              <td>{fmtInt(w.pau)}</td>
+              <td>{fmtPct(w.utilization)}</td>
+              <td>{fmtPct(w.tippingPoint)}</td>
+              <td className={w.above ? 'status-ok' : undefined}>{w.above ? 'Above' : 'Below'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="flyout-foot">
+        Data Security Maturity: <b>{d.maturity}</b>. PAU comes from the tenant licenses (Dominant SKU and security add-ons).
+      </p>
     </Drawer>
   );
 }
@@ -272,6 +446,10 @@ export function AllMauFlyout({ t }: P) {
             { label: 'Sales Copilot (CRM)', value: a.salesCrm },
           ]}
         />
+        <p className="flyout-foot">
+          Each app counts licensed and free Copilot Chat users. One user can use Copilot in several apps, so the app values do not add up to All
+          Copilot MAU ({fmtInt(t.allCopilotMau)}).
+        </p>
       </Section>
     </Drawer>
   );
@@ -337,8 +515,9 @@ export function MtdCreditsFlyout({ t }: P) {
     ['PAYGO Credits Consumed', (x) => x.paygo],
     ['Prepaid Credits Consumed', (x) => x.prepaid],
     ['Non Billable Credits Consumed', (x) => x.nonBillable],
+    ['Overage', creditOverage],
     ['Monthly Credits Limit', (x) => x.limit],
-    ['Available Billable Credits', (x) => Math.max(x.limit - creditsConsumed(x), 0)],
+    ['Available Billable Credits', availableBillableCredits],
   ];
   return (
     <Drawer title="MTD Credits Consumed">
@@ -379,7 +558,8 @@ export function MtdCreditsFlyout({ t }: P) {
       <KV
         rows={[
           ['Peak Monthly Consumption', fmtInt(t.credits.peakMonthly)],
-          ['MTD usage of Monthly Credits Limit', fmtPct((t.mtdCredits ?? 0) / m[2].limit)],
+          ['MTD usage of Monthly Credits Limit (6 of 30 days)', fmtPct((t.mtdCredits ?? 0) / m[2].limit)],
+          ['Projected month-end consumption (simulator)', `${fmtInt(projectedMonthEnd(t.mtdCredits ?? 0))} (${fmtPct(projectedMonthEnd(t.mtdCredits ?? 0) / m[2].limit)})`],
         ]}
       />
     </Drawer>
@@ -401,14 +581,14 @@ export function WeeklyFlyout({ t }: P) {
                 { label: 'Cowork', value: w.cowork },
                 { label: 'Work IQ', value: w.workIq },
                 { label: 'GitHub Copilot', value: w.githubCopilot },
-                { label: 'Agents', value: w.agents },
+                { label: 'Deep Work', value: w.deepWork },
               ]}
             />
           </Section>
           <KV
             rows={[
               ['Weekly Consumption', fmtInt(t.weeklyConsumption)],
-              ['Cowork MAU', fmtInt(t.coworkMau)],
+              ['Cowork MAU', <OpenLink kind="cowork" t={t}>{fmtInt(t.coworkMau)}</OpenLink>],
               ['Monthly Cowork Credits per User', fmtInt(t.coworkCreditsPerUser)],
             ]}
           />

@@ -143,6 +143,7 @@ export function ColumnsPanel() {
           </div>
         );
       })}
+      {DOWNLOAD_ONLY.length > 0 && (
       <div role="group" aria-label="Download-only">
         <div className="col-group-title" style={{ marginTop: 22 }}>
           Download-only
@@ -160,6 +161,7 @@ export function ColumnsPanel() {
           </div>
         ))}
       </div>
+      )}
     </Drawer>
   );
 }

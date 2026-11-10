@@ -6,6 +6,8 @@ import {
   AdminFlyout,
   AgentsFlyout,
   AllMauFlyout,
+  CoworkFlyout,
+  DataSecurityFlyout,
   E7Flyout,
   MtdCreditsFlyout,
   OpportunityFlyout,
@@ -22,6 +24,8 @@ const FLYOUTS = {
   mtdCredits: MtdCreditsFlyout,
   weekly: WeeklyFlyout,
   admin: AdminFlyout,
+  cowork: CoworkFlyout,
+  dataSecurity: DataSecurityFlyout,
 } as const;
 
 export function Panels() {

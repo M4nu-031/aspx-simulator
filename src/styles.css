@@ -914,3 +914,143 @@ table.grid {
     gap: 14px;
   }
 }
+
+/* ---------- flyout tables (licenses, opportunity details, cowork, data security) ---------- */
+.flyout-intro {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+.flyout-foot {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 14px;
+}
+.opp-tenant {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+.opp-table,
+.metric-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.opp-table th,
+.opp-table td,
+.metric-table th,
+.metric-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--row-border);
+  line-height: 1.45;
+}
+.opp-table th {
+  width: 55%;
+  font-weight: 600;
+}
+.opp-table.compact th,
+.opp-table.compact td {
+  border-bottom: 0;
+  padding: 6px 0;
+}
+.metric-table thead th {
+  font-weight: 600;
+}
+.metric-table tbody th {
+  font-weight: 400;
+  width: 55%;
+}
+.metric-table .na {
+  color: var(--text-2);
+}
+.label-with-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.label-with-tip .info-btn {
+  position: static;
+  color: var(--link);
+}
+.new-badge {
+  display: inline-block;
+  background: #0f6cbd;
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 9px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.recommendation {
+  border: 1px solid var(--card-border);
+  margin-top: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.recommendation .rec-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--card-border);
+}
+.recommendation .rec-title svg {
+  color: var(--link);
+}
+.recommendation > div:last-child {
+  padding: 10px 14px;
+}
+table.grid.lic-table,
+table.grid.ds-table {
+  table-layout: auto;
+  width: 100%;
+  margin-bottom: 12px;
+}
+.lic-table th,
+.lic-table td,
+.ds-table th,
+.ds-table td {
+  position: static !important;
+  height: auto !important;
+  padding: 8px 8px;
+  box-shadow: none !important;
+}
+.lic-table tbody th,
+.ds-table tbody th {
+  font-weight: 400;
+}
+.lic-table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+.lic-note {
+  font-size: 11px;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+.ds-table {
+  font-size: 12px;
+  margin-top: 14px;
+}
+.ds-table thead th {
+  vertical-align: bottom;
+}
+.ds-table th,
+.ds-table td,
+.lic-table th,
+.lic-table td {
+  overflow-wrap: normal;
+  word-wrap: normal;
+}
+.ds-table td {
+  white-space: nowrap;
+}
+.ds-table th,
+.ds-table td {
+  padding: 8px 6px;
+}
